@@ -1,15 +1,20 @@
 # Smudge
 
+![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285F4)
+![Network requests](https://img.shields.io/badge/network%20requests-none-2ea043)
+![Storage](https://img.shields.io/badge/storage-none-2ea043)
+![License](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)
+
 A Chrome extension that finds personal details on a web page — emails, phone
 numbers, card numbers, Social Security numbers — and blurs them before you take
 a screenshot or share your screen.
 
 Everything runs locally. No network requests, no storage, no account.
 
+![Smudge blurring the personal details in a customer record](docs/social-preview.png)
+
 **[Download and try it →](https://imashutoshgupta.github.io/smudge/)** — the
 site has a live demo you can type into, plus install steps.
-
-![Smudge](icons/icon-128.png)
 
 ## Install
 
