@@ -126,6 +126,22 @@
       "zoicici").split(" ")
   );
 
+  // The shape alone is four letters, a zero and six more characters, which an
+  // error code or a part number meets just as well — HTTP0000500 did. The bank
+  // code is a closed set, so check it, the way the licence state code is
+  // checked. Merged banks are kept: their codes still appear in old records.
+  const IFSC_BANK_CODES = new Set(
+    ("ABHY AIRP ALLA ANDB AUBL BARB BARC BCBM BDBL BKDN BKID CBIN CITI CIUB " +
+      "CNRB CORP COSB CSBK DBSS DCBL DEUT DLXB ESFB FDRL FINO HDFC HSBC IBKL " +
+      "ICIC IDFB IDIB INDB IOBA JAKA JSFB KARB KCCB KKBK KVBL LAVB MAHB NKGS " +
+      "NSPB ORBC PSIB PUNB PYTM RATN SBIN SCBL SIBL SURY SVCB SYNB TJSB TMBL " +
+      "UBIN UCBA UJVN UTBI UTIB UTKS VIJB YESB").split(" ")
+  );
+
+  function ifscValid(raw) {
+    return IFSC_BANK_CODES.has(raw.slice(0, 4));
+  }
+
   function upiValid(raw) {
     return UPI_HANDLES.has(raw.slice(raw.lastIndexOf("@") + 1).toLowerCase());
   }
@@ -154,8 +170,14 @@
     {
       // Aadhaar — 12 digits, printed in 4-4-4 groups as often as not, and
       // never starting with 0 or 1. Verhoeff-checked.
+      //
+      // The guards have to look past a group separator as well as at the
+      // adjacent character. Without that, a 12-digit window of a longer
+      // grouped run qualifies — "0339 8654 2476 2813" would hand over its
+      // last three groups whenever they happened to satisfy Verhoeff, which
+      // is about one grouped 16-digit run in eleven.
       type: "AADHAAR",
-      regex: /(?<!\d)[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}(?!\d)/g,
+      regex: /(?<!\d)(?<!\d[ -])[2-9]\d{3}[ -]?\d{4}[ -]?\d{4}(?![ -]?\d)/g,
       validate: aadhaarValid,
     },
     {
@@ -173,9 +195,10 @@
       validate: gstinValid,
     },
     {
-      // IFSC — bank code, a fixed 0, branch code. Distinctive enough on shape.
+      // IFSC — bank code, a fixed 0, branch code.
       type: "IFSC",
       regex: /\b[A-Z]{4}0[A-Z0-9]{6}\b/g,
+      validate: ifscValid,
     },
     {
       // Driving licence — state, RTO, year of issue, serial; written with or
@@ -199,12 +222,17 @@
       regex: /(?<!\d)(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/g,
     },
     {
-      // Ten-digit mobile numbers starting 6–9, usually written with a +91
-      // country code and split 5-5. The pattern above is built around 3-3-4
-      // grouping and misses those, so they get one of their own under the
-      // same type.
+      // Ten-digit mobile numbers starting 6–9, split 5-5. The pattern above is
+      // built around 3-3-4 grouping and misses those.
+      //
+      // The country code is required, and "." is not accepted as a separator.
+      // Made optional, this reduces to "five digits, separator, five digits",
+      // which is also the shape of a decimal (90000.00000), a range
+      // (70000-80000) and two numbers in a row (65536 10000) — all of which
+      // it then blurs. That does mean a bare "98765 43210" is missed; a bare
+      // "9876543210" is not, since the pattern above already catches it.
       type: "PHONE",
-      regex: /(?<!\d)(?:(?:\+?91|0)[ .-]?)?[6-9]\d{4}[ .-]?\d{5}(?!\d)/g,
+      regex: /(?<!\d)(?:(?:\+?91)[ -]?|0)[6-9]\d{4}[ -]?\d{5}(?!\d)/g,
     },
   ];
 

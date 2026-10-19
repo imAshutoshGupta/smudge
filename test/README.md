@@ -16,9 +16,12 @@ Then open http://localhost:8000/fixture.html and reload the extension at
 1. **Scan & blur** — text, form fields, and the iframe all blur. The
    Luhn-invalid card and the password field stay clear.
 2. **The ID section** — Aadhaar, PAN, UPI, licence, GSTIN and IFSC all blur,
-   spaced or not. The "must stay clear" line stays clear. On the line below
-   it, nothing is flagged as an ID — a phone blur over part of those digits
-   is the existing loose phone pattern doing its usual thing, and is fine.
+   spaced or not. Both "must stay clear" lines stay completely clear: the
+   decimal, the range, the grouped order number and the log line are the
+   shapes these patterns are easiest to get wrong, so check them properly.
+   On the line after them, nothing is flagged as an ID — a phone blur over
+   part of those digits is the existing loose phone pattern doing its usual
+   thing, and is fine.
 3. **Scan again** — counts stay the same instead of dropping to zero.
 4. **Untick a type** — only that type reveals, in the iframe too.
 5. **Click-to-blur on, then off** (button or Esc) — the link works again and
