@@ -15,7 +15,7 @@ STAGE="build/stage"
 
 FILES=(
   manifest.json
-  popup.html popup.css popup.js
+  popup.html popup.css popup.js theme.js
   content/detectors.js content/redactor.js content/index.js
   icons/icon-16.png icons/icon-32.png icons/icon-48.png icons/icon-128.png
 )

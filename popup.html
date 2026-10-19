@@ -5,14 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="popup.css" />
     <title>Smudge</title>
+    <!-- In <head>: it sets the theme before the first paint. -->
+    <script src="theme.js"></script>
   </head>
   <body>
     <header>
-      <h1>Smudge</h1>
-      <p class="tagline">Blur personal details before you screenshot or share.</p>
+      <span class="mark" aria-hidden="true"></span>
+      <div class="brand">
+        <h1>Smudge</h1>
+        <p class="tagline">Blur personal details before you share.</p>
+      </div>
+      <button id="settings" class="icon-btn" type="button"
+              aria-expanded="false" aria-controls="themes"
+              title="Theme" aria-label="Theme"></button>
     </header>
 
     <main>
+      <section id="themes" class="themes hidden" aria-label="Theme">
+        <h2>Theme</h2>
+        <div id="swatches"></div>
+      </section>
+
       <button id="scan" class="primary">Scan &amp; blur this page</button>
 
       <section id="results" class="hidden">
@@ -31,14 +44,14 @@
         <h2>Blur it yourself</h2>
         <button id="manual">Enable click-to-blur</button>
         <p class="hint">
-          Then click anything on the page to blur it, or click a blurred thing
-          to bring it back. Use this for whatever Smudge missed. Press Esc on
-          the page when you're done.
+          Click anything on the page to blur it, or click a blurred thing to
+          bring it back — for whatever Smudge missed. Press Esc on the page
+          when you're done.
         </p>
       </section>
 
       <section class="actions">
-        <button id="screenshot">📸 Save screenshot (with blurs)</button>
+        <button id="screenshot">Save screenshot</button>
         <button id="clear" class="ghost">Clear all blurs</button>
       </section>
 
@@ -46,7 +59,7 @@
     </main>
 
     <footer>
-      <span>Everything happens on your computer · nothing is uploaded</span>
+      <span>Nothing leaves your computer</span>
     </footer>
 
     <script src="popup.js"></script>
