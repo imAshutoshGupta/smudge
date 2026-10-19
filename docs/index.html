@@ -643,9 +643,9 @@
             <span class="eyebrow"><span class="dot"></span> Runs entirely on your computer</span>
             <h1>Blur personal details <span class="grad">before you share your screen.</span></h1>
             <p class="lede">
-              One click finds emails, phone numbers, card numbers and Social
-              Security numbers on any page and blurs them — so a screenshot
-              never leaks what it shouldn't.
+              One click finds emails, phone numbers, card numbers, payment
+              addresses and ID numbers on any page and blurs them — so a
+              screenshot never leaks what it shouldn't.
             </p>
             <div class="cta-row">
               <a class="btn" href="smudge.zip" download>↓&nbsp; Download for Chrome</a>
@@ -670,10 +670,12 @@
               <div class="row"><span class="k">Email</span><span class="v pii">dana.reed@example.com</span></div>
               <div class="row"><span class="k">Phone</span><span class="v pii">(415) 555-0123</span></div>
               <div class="row"><span class="k">Card</span><span class="v pii">4111 1111 1111 1111</span></div>
-              <div class="row"><span class="k">SSN</span><span class="v pii">123-45-6789</span></div>
+              <div class="row"><span class="k">Aadhaar</span><span class="v pii">2345 6789 0124</span></div>
+              <div class="row"><span class="k">PAN</span><span class="v pii">ABCPE1234F</span></div>
+              <div class="row"><span class="k">UPI</span><span class="v pii">dana.reed@okaxis</span></div>
               <div class="row"><span class="k">Order</span><span class="v">#1234567890123456</span></div>
               <div class="mock-toast">
-                <span class="tick">✓</span> Blurred 5 items
+                <span class="tick">✓</span> Blurred 7 items
               </div>
             </div>
           </div>
@@ -697,10 +699,14 @@
             <div class="pane">
               <h3>Your text</h3>
               <textarea id="input" spellcheck="false">Hi Dana — my new address is dana.reed@example.com
-and you can reach me on (415) 555-0123.
+and you can reach me on +91 98765 43210.
 
 Card on file: 4111 1111 1111 1111
-SSN for the form: 123-45-6789
+Aadhaar: 2345 6789 0124
+PAN: ABCPE1234F
+UPI: dana.reed@okaxis
+Licence: MH-12-2011-0012345
+GSTIN: 27AAPFU0939F1ZV
 
 Order #1234567890123456 shipped Tuesday.</textarea>
             </div>
@@ -715,7 +721,8 @@ Order #1234567890123456 shipped Tuesday.</textarea>
         <p class="demo-note">
           Notice the order number isn't touched — card numbers are checked
           against the Luhn formula, so order and tracking numbers don't get
-          flagged by mistake.
+          flagged by mistake. Aadhaar and GSTIN carry checksums of their own
+          and are verified the same way, so nothing is blurred on shape alone.
         </p>
       </section>
 
@@ -731,8 +738,10 @@ Order #1234567890123456 shipped Tuesday.</textarea>
             </div>
             <h3>Scan and blur</h3>
             <p>
-              One click finds emails, phone numbers, card numbers and SSNs — in
-              the page text, inside form fields, and within embedded frames.
+              One click finds emails, phone numbers, card numbers, UPI
+              addresses, SSNs, Aadhaar, PAN, driving licences, GSTINs and
+              IFSC codes — in the page text, inside form fields, and within
+              embedded frames.
             </p>
           </div>
           <div class="card">
@@ -921,6 +930,12 @@ Order #1234567890123456 shipped Tuesday.</textarea>
           PHONE: "phone numbers",
           CREDIT_CARD: "card numbers",
           SSN: "SSNs",
+          AADHAAR: "Aadhaar numbers",
+          PAN: "PAN numbers",
+          UPI: "UPI addresses",
+          DRIVING_LICENSE: "driving licences",
+          GSTIN: "GSTINs",
+          IFSC: "IFSC codes",
         };
 
         const S = window.Smudge;

@@ -1,11 +1,20 @@
 // Smudge popup logic: inject the content script on demand, drive scanning,
 // per-type toggles, manual mode, screenshot capture, and clearing.
 
+// Every type the detectors can return needs an entry here: this map is both
+// the list sent to SCAN and the order the checkboxes appear in. A type missing
+// from it is never scanned for.
 const TYPE_LABELS = {
   EMAIL: "Emails",
   PHONE: "Phone numbers",
   CREDIT_CARD: "Credit-card numbers",
   SSN: "SSNs",
+  AADHAAR: "Aadhaar numbers",
+  PAN: "PAN numbers",
+  UPI: "UPI addresses",
+  DRIVING_LICENSE: "Driving licences",
+  GSTIN: "GSTINs",
+  IFSC: "IFSC codes",
 };
 
 const els = {

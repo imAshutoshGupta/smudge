@@ -26,6 +26,9 @@
   const STYLE_ID = "smudge-style";
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
+    const revealSelectors = S.PII_TYPES.map(
+      (t) => `html.smudge-reveal-${t} .smudge-blur[data-smudge-type="${t}"]`
+    ).join(",\n      ");
     const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
@@ -35,11 +38,11 @@
         transition: filter 0.08s ease;
         user-select: none;
       }
-      /* Per-type reveal: when a type is toggled OFF in the popup, unblur it. */
-      html.smudge-reveal-EMAIL       .smudge-blur[data-smudge-type="EMAIL"],
-      html.smudge-reveal-PHONE       .smudge-blur[data-smudge-type="PHONE"],
-      html.smudge-reveal-CREDIT_CARD .smudge-blur[data-smudge-type="CREDIT_CARD"],
-      html.smudge-reveal-SSN         .smudge-blur[data-smudge-type="SSN"] {
+      /* Per-type reveal: when a type is toggled OFF in the popup, unblur it.
+         Built from S.PII_TYPES rather than written out, so adding a detector
+         doesn't need a matching line here. The type names are our own
+         constants — [A-Z_]+ — so there's nothing to escape. */
+      ${revealSelectors} {
         filter: none !important;
         user-select: auto;
       }
@@ -162,7 +165,8 @@
   // Manual blurs carry no type and are deliberately left out.
   // ---------------------------------------------------------------------------
   function currentCounts() {
-    const counts = { EMAIL: 0, PHONE: 0, CREDIT_CARD: 0, SSN: 0 };
+    const counts = {};
+    for (const t of S.PII_TYPES) counts[t] = 0;
     document.querySelectorAll(".smudge-blur[data-smudge-type]").forEach((el) => {
       const type = el.dataset.smudgeType;
       if (type in counts) counts[type] += 1;

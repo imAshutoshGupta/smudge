@@ -1,6 +1,6 @@
 # Privacy Policy for Smudge
 
-_Last updated: 19 October 2026_
+_Last updated: 20 October 2026_
 
 ## Summary
 
@@ -11,8 +11,10 @@ extension does happens inside your browser, on your own computer.
 
 When you click "Scan & blur this page", Smudge reads the text of the page you
 are currently viewing in order to find patterns that look like personal
-details — email addresses, phone numbers, payment card numbers and Social
-Security numbers — and applies a visual blur to them.
+details — email addresses, phone numbers, payment card numbers, payment
+addresses, and government and financial ID numbers such as Social Security
+numbers, Aadhaar, PAN, driving licence numbers, GSTINs and IFSC codes — and
+applies a visual blur to them.
 
 That reading happens entirely in your browser's memory. The page text is never
 written to disk, never sent over the network, and never shared with the

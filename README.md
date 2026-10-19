@@ -6,8 +6,8 @@
 ![License](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)
 
 A Chrome extension that finds personal details on a web page — emails, phone
-numbers, card numbers, Social Security numbers — and blurs them before you take
-a screenshot or share your screen.
+numbers, card numbers, payment addresses and ID numbers — and blurs them before
+you take a screenshot or share your screen.
 
 Everything runs locally. No network requests, no storage, no account.
 

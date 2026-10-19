@@ -35,12 +35,37 @@
     </section>
 
     <section>
-      <h2>3. Iframe — was never scanned before</h2>
+      <h2>3. ID numbers and payment addresses</h2>
+      <p>Aadhaar: 2345 6789 0124</p>
+      <p>Aadhaar (no spaces): 234567890124</p>
+      <p>PAN: ABCPE1234F</p>
+      <p>UPI: dana.reed@okaxis</p>
+      <p>UPI on a mobile number: 9876543210@ybl</p>
+      <p>Driving licence: MH-12-2011-0012345</p>
+      <p>GSTIN: 27AAPFU0939F1ZV</p>
+      <p>IFSC: HDFC0001234</p>
+      <p>Mobile: +91 98765 43210</p>
+      <p><input type="text" value="Aadhaar 2345 6789 0124" /></p>
+      <p class="hint">
+        These must stay clear: a PAN-shaped SKU ABCDE1234F · node@20 and
+        react@18 · the IFSC-shaped but too-short HDFC01234.
+      </p>
+      <p class="hint">
+        And these must not be claimed by the ID detectors — the checksum and
+        the state-code list rule them out. The loose phone pattern may
+        still grab a run of digits inside them, which is the long-standing
+        behaviour, not a new one: Aadhaar with a bad checksum 2345 6789 0123 ·
+        a licence with no real state code ZZ-12-2011-0012345.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Iframe — was never scanned before</h2>
       <iframe src="frame.html" title="nested content"></iframe>
     </section>
 
     <section>
-      <h2>4. Manual mode must release the page</h2>
+      <h2>5. Manual mode must release the page</h2>
       <p>
         <a href="https://example.com" target="_blank">This link must work again</a>
         after you turn click-to-blur off (button or Esc).

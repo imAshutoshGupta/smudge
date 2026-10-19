@@ -102,6 +102,11 @@ ul#counts {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* A page carrying every category at once would push the popup past the
+     600px Chrome allows it, and the note below the list with it. Scroll the
+     list instead. */
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 ul#counts li {

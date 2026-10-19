@@ -15,10 +15,14 @@ Then open http://localhost:8000/fixture.html and reload the extension at
 
 1. **Scan & blur** — text, form fields, and the iframe all blur. The
    Luhn-invalid card and the password field stay clear.
-2. **Scan again** — counts stay the same instead of dropping to zero.
-3. **Untick a type** — only that type reveals, in the iframe too.
-4. **Click-to-blur on, then off** (button or Esc) — the link works again and
+2. **The ID section** — Aadhaar, PAN, UPI, licence, GSTIN and IFSC all blur,
+   spaced or not. The "must stay clear" line stays clear. On the line below
+   it, nothing is flagged as an ID — a phone blur over part of those digits
+   is the existing loose phone pattern doing its usual thing, and is fine.
+3. **Scan again** — counts stay the same instead of dropping to zero.
+4. **Untick a type** — only that type reveals, in the iframe too.
+5. **Click-to-blur on, then off** (button or Esc) — the link works again and
    no dashed outlines trail the cursor.
-5. **Click a blurred email in manual mode** — it reveals; its type checkbox
+6. **Click a blurred email in manual mode** — it reveals; its type checkbox
    still controls it afterwards.
-6. **Clear all blurs** — page returns to its original state.
+7. **Clear all blurs** — page returns to its original state.
