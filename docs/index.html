@@ -8,14 +8,17 @@
       name="description"
       content="A browser extension that blurs emails, phone numbers and card numbers on any web page before you screenshot or share it. Everything stays on your computer."
     />
-    <link rel="icon" href="icon-128.png" />
+    <!-- ?v= is bumped whenever the mark changes. Browsers cache a favicon in a
+     store of their own that outlives a hard reload, so without a new URL a
+     returning visitor keeps the old one for days. -->
+    <link rel="icon" href="icon-128.png?v=2" />
 
     <meta property="og:title" content="Smudge — Blur Personal Details Before Sharing" />
     <meta
       property="og:description"
       content="Blur emails, phone numbers and card numbers on any page before you screenshot or share it. Nothing leaves your computer."
     />
-    <meta property="og:image" content="https://imashutoshgupta.github.io/smudge/social-preview.png" />
+    <meta property="og:image" content="https://imashutoshgupta.github.io/smudge/social-preview.png?v=2" />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="640" />
     <meta property="og:url" content="https://imashutoshgupta.github.io/smudge/" />
@@ -624,7 +627,7 @@
     <div class="wrap">
       <nav>
         <div class="brand">
-          <img src="icon-128.png" alt="" />
+          <img src="icon-128.png?v=2" alt="" />
           <span>Smudge</span>
         </div>
         <div class="nav-links">
