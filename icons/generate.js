@@ -1,19 +1,22 @@
 // Generates the extension icons. Run: node icons/generate.js
 //
-// The mark is a fingerprint whose right side smears away — the fingerprint is
-// the personal detail, the smear is Smudge doing its job.
+// The mark is two dots: one sharp, one blurred away beside it. That is the
+// whole product in two shapes — a personal detail, and the same detail after
+// Smudge has been over it. It is the same mark the popup draws in CSS, so
+// the two stay in step.
 //
-// No dependencies: shapes are rasterised by distance field, the smear is a
-// real blur, and the PNGs are encoded with Node's built-in zlib. Each size is
-// drawn at its own ridge count and weight — five fine ridges read well at
-// 128px and turn to mush at 16px, so the small sizes get three heavy ones.
+// No dependencies: the dots are rasterised by distance field, the blur is a
+// real separable gaussian, and the PNGs are encoded with Node's built-in
+// zlib. Each size is drawn at its own geometry — see TIERS.
 
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
-const ACCENT_TOP = [123, 108, 240]; // #7b6cf0
-const ACCENT_BOTTOM = [86, 70, 208]; // #5646d0
+// The popup's light-theme accent pair, so the icon and the in-popup mark are
+// the same object.
+const ACCENT_TOP = [141, 124, 243]; // #8d7cf3
+const ACCENT_BOTTOM = [108, 92, 231]; // #6c5ce7
 
 // --- tiny math helpers ------------------------------------------------------
 
@@ -24,144 +27,76 @@ function smoothstep(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
-// Distance from point to line segment.
-function distToSegment(px, py, ax, ay, bx, by) {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len2 = dx * dx + dy * dy;
-  const t = len2 === 0 ? 0 : clamp(((px - ax) * dx + (py - ay) * dy) / len2, 0, 1);
-  const cx = ax + t * dx;
-  const cy = ay + t * dy;
-  return Math.hypot(px - cx, py - cy);
-}
+// --- the dots ---------------------------------------------------------------
 
-// --- the fingerprint --------------------------------------------------------
-
-// Each ridge is an arc over the top of an ellipse, dipping past horizontal on
-// both sides, which is what reads as a fingerprint. Returned in unit space.
-function ridgePolylines(tier) {
-  const { ringCount, rxMin, rxMax, ryMin, ryMax } = tier;
-  const cx = 0.5;
-  const cyBase = 0.47;
-  const lines = [];
-  for (let i = 0; i < ringCount; i++) {
-    const f = ringCount === 1 ? 0 : i / (ringCount - 1);
-    // Egg-shaped: taller than wide, like a finger pad. The rings sit slightly
-    // lower as they grow rather than nesting concentrically — perfectly
-    // nested ovals read as a bullseye.
-    const rx = rxMin + f * (rxMax - rxMin);
-    const ry = ryMin + f * (ryMax - ryMin);
-    const cy = cyBase + f * 0.035;
-    // Each ridge wraps most of the way round, with a gap at the bottom that
-    // widens on the outer ones, so the ridge ends splay the way a real print
-    // does. Arcs spanning only the top read as a wifi symbol; closed ovals
-    // read as a target. The innermost ring closes — that's the whorl core.
-    const gapHalf = f * 0.72;
-    const start = -Math.PI / 2 + gapHalf;
-    const sweep = 2 * Math.PI - 2 * gapHalf;
-    const steps = 220;
-    const pts = [];
-    for (let s = 0; s <= steps; s++) {
-      const th = start + (sweep * s) / steps;
-      pts.push([cx + rx * Math.cos(th), cy - ry * Math.sin(th)]);
-    }
-    lines.push(pts);
-  }
-  return lines;
-}
-
-// Alpha coverage of the ridges, as a Float64Array at `size`.
-function renderRidges(size, tier) {
-  const lines = ridgePolylines(tier);
-  const half = (tier.stroke * size) / 2;
-  const feather = size * 0.004 + 0.75; // keeps edges smooth at every scale
+// Alpha coverage of one disc, as a Float64Array at `size`. Unit coordinates.
+function renderDisc(size, cx, cy, r) {
   const out = new Float64Array(size * size);
-
-  // Only visit pixels that a ridge could possibly touch.
-  const pad = half + feather + 2;
-  const segs = [];
-  for (const pts of lines) {
-    for (let i = 1; i < pts.length; i++) {
-      segs.push([
-        pts[i - 1][0] * size, pts[i - 1][1] * size,
-        pts[i][0] * size, pts[i][1] * size,
-      ]);
-    }
-  }
-  let minX = size, minY = size, maxX = 0, maxY = 0;
-  for (const s of segs) {
-    minX = Math.min(minX, s[0], s[2]);
-    maxX = Math.max(maxX, s[0], s[2]);
-    minY = Math.min(minY, s[1], s[3]);
-    maxY = Math.max(maxY, s[1], s[3]);
-  }
-  const x0 = Math.max(0, Math.floor(minX - pad));
-  const x1 = Math.min(size - 1, Math.ceil(maxX + pad));
-  const y0 = Math.max(0, Math.floor(minY - pad));
-  const y1 = Math.min(size - 1, Math.ceil(maxY + pad));
+  const px = cx * size;
+  const py = cy * size;
+  const rad = r * size;
+  const feather = size * 0.004 + 0.75; // keeps the edge smooth at every scale
+  const x0 = Math.max(0, Math.floor(px - rad - feather - 2));
+  const x1 = Math.min(size - 1, Math.ceil(px + rad + feather + 2));
+  const y0 = Math.max(0, Math.floor(py - rad - feather - 2));
+  const y1 = Math.min(size - 1, Math.ceil(py + rad + feather + 2));
 
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
-      const px = x + 0.5;
-      const py = y + 0.5;
-      let d = Infinity;
-      for (const s of segs) {
-        const dd = distToSegment(px, py, s[0], s[1], s[2], s[3]);
-        if (dd < d) d = dd;
-        if (d <= 0.0001) break;
-      }
-      const a = 1 - smoothstep(half - feather, half + feather, d);
-      if (a > 0) out[y * size + x] = a;
+      const d = Math.hypot(x + 0.5 - px, y + 0.5 - py);
+      out[y * size + x] = 1 - smoothstep(rad - feather, rad + feather, d);
     }
   }
   return out;
 }
 
-// --- smear ------------------------------------------------------------------
-
-// A directional drag to the right, like ink wiped with a thumb. An even
-// gaussian would halo outwards and read as a glow instead.
-function smearRight(src, size, length) {
-  const out = new Float64Array(size * size);
-  // Triangular weights: strongest at the pixel, trailing off behind it.
-  const weights = [];
+// Separable gaussian. An even blur, not a directional smear: the second dot
+// is the first one *out of focus*, which is what blurring does to a face or a
+// card number on screen.
+function blur(src, size, sigma) {
+  const radius = Math.max(1, Math.ceil(sigma * 3));
+  const kernel = [];
   let total = 0;
-  for (let k = 0; k <= length; k++) {
-    const w = 1 - k / (length + 1);
-    weights.push(w);
+  for (let k = -radius; k <= radius; k++) {
+    const w = Math.exp(-(k * k) / (2 * sigma * sigma));
+    kernel.push(w);
     total += w;
   }
+  for (let i = 0; i < kernel.length; i++) kernel[i] /= total;
+
+  const mid = new Float64Array(size * size);
   for (let y = 0; y < size; y++) {
-    const row = y * size;
     for (let x = 0; x < size; x++) {
       let sum = 0;
-      for (let k = 0; k <= length; k++) {
-        const sx = x - k;
-        if (sx < 0) break;
-        sum += src[row + sx] * weights[k];
+      for (let k = -radius; k <= radius; k++) {
+        sum += src[y * size + clamp(x + k, 0, size - 1)] * kernel[k + radius];
       }
-      out[row + x] = sum / total;
+      mid[y * size + x] = sum;
     }
   }
-  // A touch of vertical softening so the drag doesn't look like clean stripes.
-  return softenVertically(out, size, Math.max(1, Math.round(length * 0.18)));
-}
-
-function softenVertically(src, size, radius) {
   const out = new Float64Array(size * size);
-  const span = radius * 2 + 1;
-  for (let x = 0; x < size; x++) {
-    let sum = 0;
-    for (let k = -radius; k <= radius; k++) {
-      sum += src[clamp(k, 0, size - 1) * size + x];
-    }
-    for (let y = 0; y < size; y++) {
-      out[y * size + x] = sum / span;
-      sum -= src[clamp(y - radius, 0, size - 1) * size + x];
-      sum += src[clamp(y + radius + 1, 0, size - 1) * size + x];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let sum = 0;
+      for (let k = -radius; k <= radius; k++) {
+        sum += mid[clamp(y + k, 0, size - 1) * size + x] * kernel[k + radius];
+      }
+      out[y * size + x] = sum;
     }
   }
   return out;
+}
+
+// Blurring spreads a disc's alpha out, and how much it loses depends on the
+// ratio of blur to radius — which changes with size. Rescaling to a fixed
+// peak keeps the soft dot equally present in a 16px icon and a 128px one.
+function normalisePeak(field, target) {
+  let peak = 0;
+  for (const v of field) if (v > peak) peak = v;
+  if (peak <= 0) return field;
+  const gain = target / peak;
+  for (let i = 0; i < field.length; i++) field[i] = clamp(field[i] * gain, 0, 1);
+  return field;
 }
 
 // --- composite + encode -----------------------------------------------------
@@ -177,40 +112,35 @@ function tileAlpha(x, y, size) {
   return 1 - smoothstep(-1, 1, d);
 }
 
-// Optical sizing. A ridge needs roughly a pixel of ink and a pixel of gap to
-// stay separate, so the number of ridges is set by how many pixels there are:
-// five at 128, three at 32, two at 16. Scaling one drawing down instead turns
-// the small sizes into a white blob.
+// Optical sizing. At 16px the dots are barely two pixels across and the gap
+// between them is one, so a blur wide enough to look soft at 128px simply
+// swallows the gap. The small sizes get a tighter blur, a wider gap and more
+// alpha to compensate; scaling one drawing down instead merges them into a
+// single blob. The blur stays well under the dot's radius at every size —
+// spread much wider than that and the soft dot stops reading as a dot and
+// starts reading as a glow behind the sharp one.
 const TIERS = [
-  { upTo: 16, ringCount: 2, stroke: 0.085, rxMin: 0.145, rxMax: 0.3, ryMin: 0.175, ryMax: 0.345 },
-  { upTo: 32, ringCount: 3, stroke: 0.058, rxMin: 0.1, rxMax: 0.285, ryMin: 0.125, ryMax: 0.33 },
-  { upTo: Infinity, ringCount: 5, stroke: 0.036, rxMin: 0.085, rxMax: 0.285, ryMin: 0.105, ryMax: 0.33 },
+  { upTo: 16, r: 0.125, sharpX: 0.3, blurX: 0.7, sigma: 0.04, peak: 1 },
+  { upTo: 32, r: 0.13, sharpX: 0.315, blurX: 0.685, sigma: 0.048, peak: 0.97 },
+  { upTo: Infinity, r: 0.135, sharpX: 0.325, blurX: 0.675, sigma: 0.058, peak: 0.93 },
 ];
 
 function drawIcon(size) {
   const tier = TIERS.find((t) => size <= t.upTo);
-  const detailed = size >= 48;
-  const ss = detailed ? 4 : 8; // supersample factor
+  const ss = size >= 48 ? 4 : 8; // supersample factor
   const hi = size * ss;
 
-  const sharp = renderRidges(hi, tier);
-  // Keep the drag close to the ridge spacing. Much longer and the ridges melt
-  // into one another and read as a glow instead of a smudge.
-  const dragged = smearRight(sharp, hi, Math.max(2, Math.round(hi * 0.06)));
+  const sharp = renderDisc(hi, tier.sharpX, 0.5, tier.r);
+  const soft = normalisePeak(
+    blur(renderDisc(hi, tier.blurX, 0.5, tier.r), hi, tier.sigma * hi),
+    tier.peak
+  );
 
-  // Crisp on the left, dragged on the right. The transition finishes before
-  // the tile edge so the smear is visibly a smear and not just a fade-out.
-  // Tiny icons start later — at 16px a long smear eats the whole print.
-  const smearFrom = detailed ? 0.4 : 0.5;
-  const smearTo = detailed ? 0.84 : 0.9;
+  // Composite the soft dot under the sharp one rather than adding them, so
+  // where they overlap the alpha still tops out at 1.
   const marks = new Float64Array(hi * hi);
-  for (let y = 0; y < hi; y++) {
-    for (let x = 0; x < hi; x++) {
-      const i = y * hi + x;
-      const t = smoothstep(smearFrom, smearTo, x / hi);
-      const smeared = clamp(dragged[i] * 1.9, 0, 1); // the drag thins it out
-      marks[i] = clamp(sharp[i] * (1 - t) + smeared * t, 0, 1);
-    }
+  for (let i = 0; i < marks.length; i++) {
+    marks[i] = clamp(sharp[i] + soft[i] * (1 - sharp[i]), 0, 1);
   }
 
   // Composite white marks over the gradient tile, then downsample to `size`.
@@ -224,7 +154,7 @@ function drawIcon(size) {
           const hx = x * ss + sx;
           const hy = y * ss + sy;
           const ta = tileAlpha(hx, hy, hi);
-          const grad = hy / hi;
+          const grad = (hx / hi + hy / hi) / 2; // 135°, as in the popup's CSS
           const tr = ACCENT_TOP[0] + (ACCENT_BOTTOM[0] - ACCENT_TOP[0]) * grad;
           const tg = ACCENT_TOP[1] + (ACCENT_BOTTOM[1] - ACCENT_TOP[1]) * grad;
           const tb = ACCENT_TOP[2] + (ACCENT_BOTTOM[2] - ACCENT_TOP[2]) * grad;
