@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Smudge test fixture</title>
+    <style>
+      body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+      section { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+      h2 { margin-top: 0; font-size: 1rem; }
+      input, textarea { width: 100%; font: inherit; padding: 0.4rem; }
+      iframe { width: 100%; height: 150px; border: 1px solid #ccc; }
+      .hint { color: #666; font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Smudge test fixture</h1>
+    <p class="hint">Serve this over http:// — see test/README.md.</p>
+
+    <section>
+      <h2>1. Text nodes (baseline)</h2>
+      <p>Email: ada@example.com</p>
+      <p>Phone: (415) 555-0123</p>
+      <p>Card: 4111 1111 1111 1111</p>
+      <p>SSN: 123-45-6789</p>
+      <p>Not a card (fails Luhn): 1234 5678 9012 3456</p>
+    </section>
+
+    <section>
+      <h2>2. Form fields — were never scanned before</h2>
+      <p><input type="text" value="grace@example.com" /></p>
+      <p><input type="tel" value="415-555-0199" /></p>
+      <p><textarea rows="2">Reach me on 212-555-0188 any time.</textarea></p>
+      <p class="hint">Each should blur as a whole control.</p>
+      <p><input type="password" value="hunter2" /> <span class="hint">password: must stay untouched</span></p>
+    </section>
+
+    <section>
+      <h2>3. Iframe — was never scanned before</h2>
+      <iframe src="frame.html" title="nested content"></iframe>
+    </section>
+
+    <section>
+      <h2>4. Manual mode must release the page</h2>
+      <p>
+        <a href="https://example.com" target="_blank">This link must work again</a>
+        after you turn click-to-blur off (button or Esc).
+      </p>
+    </section>
+  </body>
+</html>

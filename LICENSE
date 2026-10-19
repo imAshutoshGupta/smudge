@@ -1,0 +1,29 @@
+Copyright (c) 2026 Ashutosh Gupta. All rights reserved.
+
+This source code is published so that anyone who uses the Smudge browser
+extension can read it and verify what it does — in particular, that it
+collects no data and makes no network requests.
+
+Publishing it to be read is not a grant of any other right.
+
+YOU MAY:
+  - read and inspect this source code
+  - install and run the extension for your own personal use
+
+YOU MAY NOT, without prior written permission from the copyright holder:
+  - copy, reproduce or republish this code or any part of it
+  - modify it or create derivative works from it
+  - distribute, sublicense, sell or otherwise make it available to others
+  - use it, in whole or in part, in any other product, whether free or paid
+
+All rights not expressly granted above are reserved.
+
+For permission to do anything else with this code, or to ask about licensing
+it, open an issue at https://github.com/imAshutoshGupta/smudge
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

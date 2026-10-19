@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Smudge</title>
+  </head>
+  <body>
+    <header>
+      <h1>Smudge</h1>
+      <p class="tagline">Blur personal details before you screenshot or share.</p>
+    </header>
+
+    <main>
+      <button id="scan" class="primary">Scan &amp; blur this page</button>
+
+      <section id="results" class="hidden">
+        <h2>Found on this page</h2>
+        <ul id="counts"></ul>
+        <p class="note">
+          Smudge catches the usual things — email addresses, phone numbers,
+          card numbers and Social Security numbers. It will miss names,
+          addresses, and anything written in an unusual way.
+          <strong>Look over the page yourself before you share it.</strong>
+          Untick anything you'd rather leave visible.
+        </p>
+      </section>
+
+      <section class="manual">
+        <h2>Blur it yourself</h2>
+        <button id="manual">Enable click-to-blur</button>
+        <p class="hint">
+          Then click anything on the page to blur it, or click a blurred thing
+          to bring it back. Use this for whatever Smudge missed. Press Esc on
+          the page when you're done.
+        </p>
+      </section>
+
+      <section class="actions">
+        <button id="screenshot">📸 Save screenshot (with blurs)</button>
+        <button id="clear" class="ghost">Clear all blurs</button>
+      </section>
+
+      <p id="status" class="status" role="status"></p>
+    </main>
+
+    <footer>
+      <span>Everything happens on your computer · nothing is uploaded</span>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

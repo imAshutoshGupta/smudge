@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smudge — Blur Personal Details Before Sharing</title>
+    <meta
+      name="description"
+      content="A browser extension that blurs emails, phone numbers and card numbers on any web page before you screenshot or share it. Everything stays on your computer."
+    />
+    <link rel="icon" href="icon-128.png" />
+
+    <meta property="og:title" content="Smudge — Blur Personal Details Before Sharing" />
+    <meta
+      property="og:description"
+      content="Blur emails, phone numbers and card numbers on any page before you screenshot or share it. Nothing leaves your computer."
+    />
+    <meta property="og:image" content="https://imashutoshgupta.github.io/smudge/icon-128.png" />
+    <meta property="og:url" content="https://imashutoshgupta.github.io/smudge/" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+
+    <style>
+      /* ---------------------------------------------------------------
+         Tokens. System fonts only — a privacy tool shouldn't be phoning
+         a font CDN on every page load.
+      ---------------------------------------------------------------- */
+      :root {
+        --accent: #6c5ce7;
+        --accent-2: #a78bfa;
+        --accent-ink: #ffffff;
+
+        --bg: #ffffff;
+        --bg-soft: #f7f7fb;
+        --bg-sunken: #efedf7;
+        --surface: #ffffff;
+
+        --fg: #15141c;
+        --fg-mid: #4a4860;
+        --fg-dim: #76738d;
+        --border: #e6e4f0;
+
+        --shadow-sm: 0 1px 2px rgba(20, 18, 38, 0.05);
+        --shadow-md: 0 4px 12px rgba(20, 18, 38, 0.07), 0 1px 3px rgba(20, 18, 38, 0.05);
+        --shadow-lg: 0 24px 60px -12px rgba(20, 18, 38, 0.18), 0 8px 20px -8px rgba(20, 18, 38, 0.1);
+
+        --radius: 14px;
+        --maxw: 64rem;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --accent: #8b7bf0;
+          --accent-2: #c4b5fd;
+
+          --bg: #0d0c12;
+          --bg-soft: #14131c;
+          --bg-sunken: #1d1b28;
+          --surface: #16151f;
+
+          --fg: #f4f3f8;
+          --fg-mid: #b6b3c8;
+          --fg-dim: #8b8799;
+          --border: #272435;
+
+          --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+          --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+          --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+        }
+      }
+
+      :root[data-theme="dark"] {
+        --accent: #8b7bf0;
+        --accent-2: #c4b5fd;
+        --bg: #0d0c12;
+        --bg-soft: #14131c;
+        --bg-sunken: #1d1b28;
+        --surface: #16151f;
+        --fg: #f4f3f8;
+        --fg-mid: #b6b3c8;
+        --fg-dim: #8b8799;
+        --border: #272435;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.7), 0 8px 20px -8px rgba(0, 0, 0, 0.5);
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+
+      .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 16px; }
+      .narrow { max-width: 46rem; }
+
+      a { color: var(--accent); }
+
+      /* ---------------------------------------------------------------
+         Nav
+      ---------------------------------------------------------------- */
+      nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-weight: 650;
+        letter-spacing: -0.015em;
+        font-size: 1.05rem;
+      }
+      .brand img { width: 30px; height: 30px; border-radius: 8px; }
+      .nav-links { display: flex; gap: 1.5rem; font-size: 0.925rem; }
+      .nav-links a { color: var(--fg-mid); text-decoration: none; }
+      .nav-links a:hover { color: var(--fg); }
+      @media (max-width: 34rem) { .nav-links a.hide-sm { display: none; } }
+
+      /* ---------------------------------------------------------------
+         Hero
+      ---------------------------------------------------------------- */
+      .hero {
+        position: relative;
+        padding: 3.5rem 0 4.5rem;
+      }
+      /* Soft colour wash behind the hero. Sits under everything. */
+      .hero::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: -14rem;
+        width: 60rem;
+        height: 40rem;
+        transform: translateX(-50%);
+        background:
+          radial-gradient(38% 42% at 32% 42%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 70%),
+          radial-gradient(34% 38% at 70% 32%, color-mix(in srgb, var(--accent-2) 24%, transparent), transparent 70%);
+        filter: blur(36px);
+        opacity: 0.75;
+        pointer-events: none;
+        z-index: 0;
+      }
+      .hero > * { position: relative; z-index: 1; }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+        gap: 3.5rem;
+        align-items: center;
+      }
+      @media (max-width: 54rem) {
+        .hero-grid { grid-template-columns: 1fr; gap: 2.75rem; }
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 11%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        margin-bottom: 1.25rem;
+      }
+      .eyebrow .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--accent);
+      }
+
+      h1 {
+        font-size: clamp(2.1rem, 5.5vw, 3.35rem);
+        line-height: 1.06;
+        letter-spacing: -0.035em;
+        margin: 0 0 1.1rem;
+        font-weight: 700;
+      }
+      h1 .grad {
+        background: linear-gradient(100deg, var(--accent), var(--accent-2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .lede {
+        font-size: clamp(1.02rem, 2vw, 1.15rem);
+        color: var(--fg-mid);
+        margin: 0 0 1.85rem;
+        max-width: 32rem;
+      }
+
+      .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--accent);
+        color: var(--accent-ink);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.95rem;
+        padding: 0.8rem 1.35rem;
+        border-radius: 11px;
+        box-shadow: var(--shadow-md);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      }
+      .btn:hover {
+        background: color-mix(in srgb, var(--accent) 88%, black);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-lg);
+      }
+      .btn.ghost {
+        background: var(--surface);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-sm);
+      }
+      .btn.ghost:hover { background: var(--bg-soft); }
+      .meta { font-size: 0.85rem; color: var(--fg-dim); margin: 1.1rem 0 0; }
+
+      /* ---------------------------------------------------------------
+         The animated browser mock — the product, demonstrated
+      ---------------------------------------------------------------- */
+      .mock {
+        border-radius: var(--radius);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-lg);
+        overflow: hidden;
+        position: relative;
+      }
+      .mock-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 0.85rem;
+        background: var(--bg-soft);
+        border-bottom: 1px solid var(--border);
+      }
+      .mock-dots { display: flex; gap: 6px; }
+      .mock-dots i {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: var(--border);
+      }
+      .mock-url {
+        flex: 1;
+        font-size: 0.72rem;
+        color: var(--fg-dim);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.22rem 0.6rem;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mock-body { padding: 1.5rem 1.4rem 1.6rem; position: relative; }
+
+      .mock-title {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--fg-dim);
+        font-weight: 650;
+        margin: 0 0 1rem;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.875rem;
+        align-items: baseline;
+      }
+      .row:last-of-type { border-bottom: none; }
+      .row .k { color: var(--fg-dim); flex-shrink: 0; }
+      .row .v {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.82rem;
+        text-align: right;
+        word-break: break-all;
+      }
+
+      /* Items that the fake scan blurs, staggered down the list. */
+      .v.pii {
+        animation: redact 9s ease-in-out infinite;
+        border-radius: 3px;
+      }
+      .v.pii:nth-of-type(1) { animation-delay: 0s; }
+      .row:nth-child(2) .v.pii { animation-delay: 0.1s; }
+      .row:nth-child(3) .v.pii { animation-delay: 0.28s; }
+      .row:nth-child(4) .v.pii { animation-delay: 0.46s; }
+      .row:nth-child(5) .v.pii { animation-delay: 0.64s; }
+      .row:nth-child(6) .v.pii { animation-delay: 0.82s; }
+
+      @keyframes redact {
+        0%, 14%   { filter: blur(0); }
+        22%, 78%  { filter: blur(5px); }
+        88%, 100% { filter: blur(0); }
+      }
+
+      /* The scan line that sweeps down as things blur. */
+      .scanline {
+        position: absolute;
+        left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        box-shadow: 0 0 14px 2px color-mix(in srgb, var(--accent) 55%, transparent);
+        opacity: 0;
+        animation: sweep 9s ease-in-out infinite;
+        pointer-events: none;
+      }
+      @keyframes sweep {
+        0%        { top: 2.6rem; opacity: 0; }
+        12%       { opacity: 1; }
+        26%       { top: 100%; opacity: 1; }
+        32%, 100% { top: 100%; opacity: 0; }
+      }
+
+      /* Little floating result card, like the extension popup reporting back */
+      .mock-toast {
+        position: absolute;
+        right: 1rem;
+        bottom: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow-lg);
+        padding: 0.6rem 0.8rem;
+        font-size: 0.78rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        opacity: 0;
+        transform: translateY(6px);
+        animation: toast 9s ease-in-out infinite;
+      }
+      .mock-toast .tick {
+        width: 16px; height: 16px; border-radius: 50%;
+        background: var(--accent); color: #fff;
+        display: grid; place-items: center;
+        font-size: 10px; font-weight: 700;
+        flex-shrink: 0;
+      }
+      @keyframes toast {
+        0%, 26%   { opacity: 0; transform: translateY(6px); }
+        34%, 76%  { opacity: 1; transform: translateY(0); }
+        86%, 100% { opacity: 0; transform: translateY(6px); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .v.pii { animation: none; filter: blur(5px); }
+        .scanline { display: none; }
+        .mock-toast { animation: none; opacity: 1; transform: none; }
+        html { scroll-behavior: auto; }
+      }
+
+      /* ---------------------------------------------------------------
+         Sections
+      ---------------------------------------------------------------- */
+      section { padding: 4.5rem 0; }
+      section + section { border-top: 1px solid var(--border); }
+
+      .sec-head { margin-bottom: 2.25rem; }
+      h2 {
+        font-size: clamp(1.5rem, 3.2vw, 2rem);
+        letter-spacing: -0.025em;
+        margin: 0 0 0.55rem;
+        font-weight: 680;
+      }
+      .sub { color: var(--fg-mid); margin: 0; max-width: 38rem; }
+
+      /* ---------------------------------------------------------------
+         Live demo
+      ---------------------------------------------------------------- */
+      .demo {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow-md);
+        overflow: hidden;
+      }
+      .demo-grid { display: grid; grid-template-columns: 1fr 1fr; }
+      @media (max-width: 44rem) { .demo-grid { grid-template-columns: 1fr; } }
+      .pane { padding: 1.1rem 1.2rem 1.3rem; min-width: 0; }
+      .pane + .pane {
+        border-left: 1px solid var(--border);
+        background: var(--bg-soft);
+      }
+      @media (max-width: 44rem) {
+        .pane + .pane { border-left: none; border-top: 1px solid var(--border); }
+      }
+      .pane h3 {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--fg-dim);
+        margin: 0 0 0.75rem;
+        font-weight: 650;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      textarea {
+        width: 100%;
+        min-height: 11rem;
+        border: none;
+        background: transparent;
+        color: var(--fg);
+        font: 13.5px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace;
+        resize: vertical;
+        outline: none;
+        padding: 0;
+      }
+      #output {
+        min-height: 11rem;
+        font: 13.5px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .hit {
+        filter: blur(5px);
+        border-radius: 3px;
+        cursor: pointer;
+        user-select: none;
+        transition: filter 0.12s ease;
+      }
+      .hit.revealed { filter: none; user-select: auto; }
+
+      .demo-foot {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.4rem 0.75rem;
+        padding: 0.85rem 1.2rem;
+        border-top: 1px solid var(--border);
+        background: var(--bg-soft);
+      }
+      .chip {
+        font-size: 0.78rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 0.2rem 0.7rem;
+        color: var(--fg-mid);
+      }
+      .chip b { color: var(--fg); font-weight: 650; }
+      .demo-note { font-size: 0.85rem; color: var(--fg-dim); margin: 1rem 0 0; }
+
+      /* ---------------------------------------------------------------
+         Features
+      ---------------------------------------------------------------- */
+      .cards { display: grid; gap: 1rem; grid-template-columns: repeat(3, 1fr); }
+      @media (max-width: 48rem) { .cards { grid-template-columns: 1fr; } }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.35rem 1.3rem;
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+      }
+      .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+      .card .ico {
+        width: 34px; height: 34px;
+        border-radius: 9px;
+        background: color-mix(in srgb, var(--accent) 13%, transparent);
+        color: var(--accent);
+        display: grid; place-items: center;
+        margin-bottom: 0.85rem;
+      }
+      .card h3 { margin: 0 0 0.35rem; font-size: 1rem; letter-spacing: -0.01em; }
+      .card p { margin: 0; font-size: 0.9rem; color: var(--fg-mid); }
+
+      /* ---------------------------------------------------------------
+         Install
+      ---------------------------------------------------------------- */
+      .install-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 3rem;
+        align-items: start;
+      }
+      @media (max-width: 54rem) { .install-grid { grid-template-columns: 1fr; gap: 2rem; } }
+
+      ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; }
+      ol.steps li { counter-increment: s; position: relative; padding: 0 0 1.5rem 2.9rem; }
+      ol.steps li::before {
+        content: counter(s);
+        position: absolute; left: 0; top: -1px;
+        width: 1.9rem; height: 1.9rem;
+        border-radius: 50%;
+        background: var(--accent); color: #fff;
+        display: grid; place-items: center;
+        font-weight: 650; font-size: 0.85rem;
+      }
+      ol.steps li::after {
+        content: "";
+        position: absolute; left: 0.95rem; top: 2.15rem; bottom: 0.3rem;
+        width: 1px; background: var(--border);
+      }
+      ol.steps li:last-child { padding-bottom: 0; }
+      ol.steps li:last-child::after { display: none; }
+      ol.steps strong { display: block; margin-bottom: 0.1rem; font-weight: 620; }
+      ol.steps p { margin: 0; color: var(--fg-mid); font-size: 0.9rem; }
+      kbd {
+        background: var(--bg-sunken);
+        border: 1px solid var(--border);
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        padding: 0.08rem 0.38rem;
+        font: 0.85em ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--fg);
+      }
+
+      .note {
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 10px;
+        padding: 0.95rem 1.1rem;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+      }
+      .note strong { display: block; margin-bottom: 0.15rem; }
+      .note p { margin: 0; color: var(--fg-mid); }
+
+      /* ---------------------------------------------------------------
+         Privacy — given its own full-width band, because for this tool
+         it is the product, not a footnote.
+      ---------------------------------------------------------------- */
+      .band {
+        background:
+          linear-gradient(180deg,
+            color-mix(in srgb, var(--accent) 7%, transparent),
+            color-mix(in srgb, var(--accent) 3%, transparent));
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        margin-top: 4.5rem;
+      }
+      .band section { padding: 4.5rem 0; border-top: none; }
+
+      .points {
+        display: grid;
+        gap: 0.9rem 2.5rem;
+        grid-template-columns: 1fr 1fr;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+      @media (max-width: 44rem) { .points { grid-template-columns: 1fr; } }
+
+      .points li {
+        display: flex;
+        gap: 0.65rem;
+        align-items: flex-start;
+        font-size: 0.93rem;
+        color: var(--fg-mid);
+        line-height: 1.55;
+      }
+      .points .tick {
+        flex-shrink: 0;
+        width: 19px; height: 19px;
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--accent) 15%, transparent);
+        color: var(--accent);
+        display: grid; place-items: center;
+        margin-top: 2px;
+      }
+      .points b { color: var(--fg); font-weight: 640; }
+
+      .verify {
+        margin-top: 2rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.25rem 1.35rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        box-shadow: var(--shadow-sm);
+      }
+      .verify p { margin: 0; font-size: 0.925rem; color: var(--fg-mid); max-width: 34rem; }
+      .verify strong { color: var(--fg); display: block; margin-bottom: 0.15rem; font-size: 1rem; }
+
+      /* ---------------------------------------------------------------
+         Footer
+      ---------------------------------------------------------------- */
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 2rem 0 3rem;
+        color: var(--fg-dim);
+        font-size: 0.875rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem 1.25rem;
+        justify-content: space-between;
+      }
+      footer a { color: var(--fg-mid); text-decoration: none; }
+      footer a:hover { color: var(--accent); }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <nav>
+        <div class="brand">
+          <img src="icon-128.png" alt="" />
+          <span>Smudge</span>
+        </div>
+        <div class="nav-links">
+          <a href="#demo" class="hide-sm">Demo</a>
+          <a href="#install">Install</a>
+          <a href="https://github.com/imAshutoshGupta/smudge">GitHub</a>
+        </div>
+      </nav>
+    </div>
+
+    <!-- ===================== hero ===================== -->
+    <div class="hero">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div>
+            <span class="eyebrow"><span class="dot"></span> Runs entirely on your computer</span>
+            <h1>Blur personal details <span class="grad">before you share your screen.</span></h1>
+            <p class="lede">
+              One click finds emails, phone numbers, card numbers and Social
+              Security numbers on any page and blurs them — so a screenshot
+              never leaks what it shouldn't.
+            </p>
+            <div class="cta-row">
+              <a class="btn" href="smudge.zip" download>↓&nbsp; Download for Chrome</a>
+              <a class="btn ghost" href="#install">How to install</a>
+            </div>
+            <p class="meta">
+              Version <span id="version">0.1.0</span> · Free to use · Works in
+              Chrome, Edge, Brave and Arc
+            </p>
+          </div>
+
+          <!-- The product, demonstrated rather than described -->
+          <div class="mock" aria-hidden="true">
+            <div class="mock-bar">
+              <div class="mock-dots"><i></i><i></i><i></i></div>
+              <div class="mock-url">support.yourcompany.com/tickets/4812</div>
+            </div>
+            <div class="mock-body">
+              <div class="scanline"></div>
+              <p class="mock-title">Customer record</p>
+              <div class="row"><span class="k">Name</span><span class="v pii">Dana Reed</span></div>
+              <div class="row"><span class="k">Email</span><span class="v pii">dana.reed@example.com</span></div>
+              <div class="row"><span class="k">Phone</span><span class="v pii">(415) 555-0123</span></div>
+              <div class="row"><span class="k">Card</span><span class="v pii">4111 1111 1111 1111</span></div>
+              <div class="row"><span class="k">SSN</span><span class="v pii">123-45-6789</span></div>
+              <div class="row"><span class="k">Order</span><span class="v">#1234567890123456</span></div>
+              <div class="mock-toast">
+                <span class="tick">✓</span> Blurred 5 items
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== live demo ===================== -->
+    <div class="wrap">
+      <section id="demo">
+        <div class="sec-head">
+          <h2>Try it right here</h2>
+          <p class="sub">
+            This runs the extension's real detection code, in your browser.
+            Type anything — it blurs as you go. Click a blurred bit to reveal it.
+          </p>
+        </div>
+
+        <div class="demo">
+          <div class="demo-grid">
+            <div class="pane">
+              <h3>Your text</h3>
+              <textarea id="input" spellcheck="false">Hi Dana — my new address is dana.reed@example.com
+and you can reach me on (415) 555-0123.
+
+Card on file: 4111 1111 1111 1111
+SSN for the form: 123-45-6789
+
+Order #1234567890123456 shipped Tuesday.</textarea>
+            </div>
+            <div class="pane">
+              <h3>What a screenshot would show</h3>
+              <div id="output"></div>
+            </div>
+          </div>
+          <div class="demo-foot" id="tally"></div>
+        </div>
+
+        <p class="demo-note">
+          Notice the order number isn't touched — card numbers are checked
+          against the Luhn formula, so order and tracking numbers don't get
+          flagged by mistake.
+        </p>
+      </section>
+
+      <!-- ===================== features ===================== -->
+      <section>
+        <div class="sec-head">
+          <h2>What it does</h2>
+        </div>
+        <div class="cards">
+          <div class="card">
+            <div class="ico">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            </div>
+            <h3>Scan and blur</h3>
+            <p>
+              One click finds emails, phone numbers, card numbers and SSNs — in
+              the page text, inside form fields, and within embedded frames.
+            </p>
+          </div>
+          <div class="card">
+            <div class="ico">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 9 3-9"/><path d="M5 5a9 9 0 0 1 14 0"/><path d="M8 8a5 5 0 0 1 8 0"/></svg>
+            </div>
+            <h3>Blur anything else</h3>
+            <p>
+              Turn on click-to-blur and click any part of the page — a name, a
+              face, a whole paragraph. Click again to bring it back.
+            </p>
+          </div>
+          <div class="card">
+            <div class="ico">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 9v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z"/></svg>
+            </div>
+            <h3>Save or share</h3>
+            <p>
+              Save a screenshot with the blurs baked in, or leave them up while
+              you share your screen. One click puts the page back.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== install ===================== -->
+      <section id="install">
+        <div class="sec-head">
+          <h2>Installing it</h2>
+          <p class="sub">
+            Smudge isn't in the Chrome Web Store yet, so you load it from the
+            folder you download. It takes about a minute.
+          </p>
+        </div>
+
+        <div class="install-grid">
+          <ol class="steps">
+            <li>
+              <strong>Download and unzip</strong>
+              <p>
+                You'll get a folder called <kbd>smudge</kbd>. Put it somewhere
+                you won't delete by accident — Chrome reads it from that
+                location every time.
+              </p>
+            </li>
+            <li>
+              <strong>Open your extensions page</strong>
+              <p>
+                Paste <kbd>chrome://extensions</kbd> into the address bar. In
+                Edge it's <kbd>edge://extensions</kbd>, in Brave
+                <kbd>brave://extensions</kbd>.
+              </p>
+            </li>
+            <li>
+              <strong>Turn on Developer mode</strong>
+              <p>The switch is in the top-right corner of that page.</p>
+            </li>
+            <li>
+              <strong>Click “Load unpacked”</strong>
+              <p>
+                A button appears top-left once Developer mode is on. Select the
+                <kbd>smudge</kbd> folder you unzipped.
+              </p>
+            </li>
+            <li>
+              <strong>Pin it to your toolbar</strong>
+              <p>
+                Click the puzzle-piece icon next to the address bar, find
+                Smudge, and click the pin. That's it.
+              </p>
+            </li>
+          </ol>
+
+          <div>
+            <div class="note" style="margin-top: 0">
+              <strong>Why “Developer mode”?</strong>
+              <p>
+                It only means the extension didn't come from Chrome's store.
+                You're loading a folder you downloaded and can read for
+                yourself — no security settings are being changed. Chrome shows
+                a “Disable developer mode extensions?” prompt on startup.
+                That's expected, and you can dismiss it.
+              </p>
+            </div>
+
+            <div class="note">
+              <strong>Updates aren't automatic</strong>
+              <p>
+                Because it's not in the store, new versions won't arrive on
+                their own. Check back here now and then — the version number is
+                at the top of this page.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ===================== privacy ===================== -->
+    <div class="band">
+      <div class="wrap">
+        <section>
+          <div class="sec-head">
+            <h2>What you blur never leaves your computer</h2>
+            <p class="sub">
+              Smudge reads whatever page is in front of you. That's a lot to
+              ask someone to trust, so here is exactly what it can and can't
+              do — no jargon.
+            </p>
+          </div>
+
+          <ul class="points">
+            <li>
+              <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+              <span><b>Nowhere to send it.</b> No website behind it, no company, no account.</span>
+            </li>
+            <li>
+              <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+              <span><b>Nothing is saved.</b> Reload the page and every blur is gone.</span>
+            </li>
+            <li>
+              <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+              <span><b>It can't watch you browse.</b> Only the tab you're on, only after you click.</span>
+            </li>
+            <li>
+              <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+              <span><b>It does nothing on its own.</b> Not awake until you press the button.</span>
+            </li>
+            <li>
+              <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+              <span><b>No sign-up, ever.</b> Nothing to create, nothing to log into.</span>
+            </li>
+            <li>
+              <span class="tick"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>
+              <span><b>Screenshots stay yours.</b> Saved straight to your Downloads, nowhere else.</span>
+            </li>
+          </ul>
+
+          <div class="verify">
+            <p>
+              <strong>Don't take our word for it</strong>
+              Every line Smudge is made of is published for anyone to read, and
+              it's short enough to get through in one sitting. A promise about
+              privacy is worth very little if nobody can check it.
+            </p>
+            <a class="btn ghost" href="https://github.com/imAshutoshGupta/smudge">Read the code</a>
+          </div>
+
+          <div class="note">
+            <strong>And one thing it can't do</strong>
+            <p>
+              Blurring covers things up on screen. The words underneath are
+              still part of the web page itself, so treat this as a way to
+              tidy up screenshots and screen shares — not as a lock on your
+              information. Automatic blurring also won't catch names or street
+              addresses, which is what click-to-blur is for. Give the page a
+              look over yourself before you share it.
+            </p>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <footer>
+        <span>Built by Ashutosh Gupta</span>
+        <span>
+          <a href="https://github.com/imAshutoshGupta/smudge">Source</a> ·
+          <a href="https://github.com/imAshutoshGupta/smudge/blob/main/PRIVACY.md">Privacy</a> ·
+          <a href="https://github.com/imAshutoshGupta/smudge/blob/main/LICENSE">License</a>
+        </span>
+      </footer>
+    </div>
+
+    <!-- The extension's real detector, so this demo can't drift from the product -->
+    <script src="detectors.js"></script>
+    <script>
+      (() => {
+        const input = document.getElementById("input");
+        const output = document.getElementById("output");
+        const tally = document.getElementById("tally");
+
+        const LABELS = {
+          EMAIL: "emails",
+          PHONE: "phone numbers",
+          CREDIT_CARD: "card numbers",
+          SSN: "SSNs",
+        };
+
+        const S = window.Smudge;
+        if (!S) {
+          output.textContent =
+            "Couldn't load the detector. Serve this page over http:// rather than opening the file directly.";
+          return;
+        }
+        const ALL = new Set(S.PII_TYPES);
+
+        function render() {
+          const text = input.value;
+          const hits = S.findHits(text, ALL);
+
+          output.textContent = "";
+          const counts = {};
+          let cursor = 0;
+
+          for (const h of hits) {
+            if (h.start > cursor) output.append(text.slice(cursor, h.start));
+            const span = document.createElement("span");
+            span.className = "hit";
+            span.textContent = text.slice(h.start, h.end);
+            span.title = "Click to reveal";
+            span.addEventListener("click", () => span.classList.toggle("revealed"));
+            output.append(span);
+            counts[h.type] = (counts[h.type] || 0) + 1;
+            cursor = h.end;
+          }
+          if (cursor < text.length) output.append(text.slice(cursor));
+
+          tally.textContent = "";
+          const found = Object.keys(LABELS).filter((t) => counts[t]);
+          if (!found.length) {
+            const chip = document.createElement("span");
+            chip.className = "chip";
+            chip.textContent = "nothing detected";
+            tally.append(chip);
+            return;
+          }
+          for (const type of found) {
+            const chip = document.createElement("span");
+            chip.className = "chip";
+            const n = document.createElement("b");
+            n.textContent = counts[type];
+            chip.append(n, " " + LABELS[type]);
+            tally.append(chip);
+          }
+        }
+
+        input.addEventListener("input", render);
+        render();
+      })();
+    </script>
+  </body>
+</html>
