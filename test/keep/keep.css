@@ -1,0 +1,5 @@
+body { font: 15px/1.6 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
+nav { margin-bottom: 1rem; }
+.card, .panel { border: 1px solid #ddd; border-radius: 6px; padding: 0.5rem 1rem; margin: 0.5rem 0; }
+.hint { color: #666; font-size: 0.85rem; }
+input { width: 100%; font: inherit; padding: 0.4rem; }

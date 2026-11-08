@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Keep blurs — page one</title>
+    <link rel="stylesheet" href="keep.css" />
+  </head>
+  <body>
+    <nav>
+      <a id="to-one" href="one.html">Page one</a> ·
+      <a id="to-two" href="two.html">Page two</a> ·
+      <a id="to-spa" href="/spa/a">Single-page app</a>
+    </nav>
+    <main>
+      <h1>Page one — a customer record</h1>
+      <p class="hint">
+        Scan, click-to-blur the name card and the note, switch on “Keep blurs”,
+        then go to page two and come back.
+      </p>
+      <p class="email">Email: ada@example.com</p>
+      <p class="backup">Backup: ada.backup@example.com</p>
+      <script>
+        // Test hook for "the layout moved": push a banner in above the
+        // record, which shifts every paragraph below it down one place.
+        if (localStorage.getItem("smudge-test-banner")) {
+          document.write('<p class="banner">Heads up: maintenance tonight</p>');
+        }
+      </script>
+      <p class="note">Private note: prefers calls after 6pm</p>
+      <div class="card">
+        <p class="name">Ada Lovelace</p>
+        <p class="addr">12 St James's Square, London</p>
+      </div>
+      <p class="clock">Last seen <span class="ago"></span></p>
+      <p><input class="field" type="text" value="grace@example.com" /></p>
+    </main>
+    <script>
+      // Changes on every load — a blurred element whose text is never the
+      // same twice.
+      document.querySelector(".ago").textContent = "at " + Date.now();
+    </script>
+  </body>
+</html>

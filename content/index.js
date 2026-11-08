@@ -1,7 +1,10 @@
-// Smudge — content-script entry point. Injected last (after detectors.js and
-// redactor.js). Owns the injection guard and the message bridge to the popup.
+// Smudge — content-script entry point. Injected last (after detectors.js,
+// redactor.js and keep.js). Owns the injection guard and the message bridge
+// to the popup.
 //
-// Everything runs locally in the page. No network, no storage, no exfil.
+// Everything runs locally in the page. No network, no exfil. The only thing
+// kept is keep.js's in-memory list of what was blurred, and only on a site
+// the person switched "Keep blurs" on for.
 
 (() => {
   // Guard against double-injection: the popup may executeScript more than once,
@@ -29,7 +32,28 @@
           sendResponse({ ok: true });
           break;
         case "CLEAR_ALL":
+          S.keep.stop();
           S.clearAll();
+          sendResponse({ ok: true });
+          break;
+        case "GET_STATE":
+          sendResponse({ ok: true, keep: S.keep.isActive(), ...S.getState() });
+          break;
+        case "KEEP":
+          // A frame from another site, embedded in this one, belongs to that
+          // site's switch, not this one.
+          if (msg.on && msg.origin && msg.origin !== location.origin) {
+            sendResponse({ ok: true, skipped: true });
+            break;
+          }
+          if (msg.on) {
+            S.keep.enable().then(
+              () => sendResponse({ ok: true }),
+              (err) => sendResponse({ ok: false, error: String(err) })
+            );
+            return true;
+          }
+          S.keep.stop();
           sendResponse({ ok: true });
           break;
         default:
@@ -40,4 +64,9 @@
     }
     return true; // keep the channel open for the async sendResponse
   });
+
+  // On a site with "Keep blurs" on, these scripts run at the start of every
+  // page load; put back what was blurred here before. Elsewhere this finds
+  // nothing to restore and does nothing.
+  S.keep.boot();
 })();

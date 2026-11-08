@@ -50,6 +50,19 @@
         </p>
       </section>
 
+      <section class="keep">
+        <h2>Across pages</h2>
+        <label class="switch-row" for="keep">
+          <span class="switch-label">Keep blurs as I move around this site</span>
+          <input type="checkbox" id="keep" class="switch" role="switch" />
+        </label>
+        <p id="keep-hint" class="hint">
+          Come back to a page and its blurs come back too. Chrome will ask
+          once to let Smudge onto this site. Lasts until you press
+          <em>Clear all blurs</em> or close the browser.
+        </p>
+      </section>
+
       <section class="actions">
         <button id="screenshot">Save screenshot</button>
         <button id="clear" class="ghost">Clear all blurs</button>
@@ -62,6 +75,7 @@
       <span>Nothing leaves your computer</span>
     </footer>
 
+    <script src="site-access.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

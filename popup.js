@@ -1,5 +1,6 @@
 // Smudge popup logic: inject the content script on demand, drive scanning,
-// per-type toggles, manual mode, screenshot capture, and clearing.
+// per-type toggles, manual mode, keeping blurs across pages, screenshot
+// capture, and clearing. site-access.js (SmudgeSites) is loaded first.
 
 // Every type the detectors can return needs an entry here: this map is both
 // the list sent to SCAN and the order the checkboxes appear in. A type missing
@@ -24,10 +25,20 @@ const els = {
   manual: document.getElementById("manual"),
   screenshot: document.getElementById("screenshot"),
   clear: document.getElementById("clear"),
+  keep: document.getElementById("keep"),
+  keepHint: document.getElementById("keep-hint"),
   status: document.getElementById("status"),
 };
 
 let manualOn = false;
+// Types unticked in this popup — so a re-scan, or reopening the popup on a
+// kept site, draws the checkboxes the way the page actually is.
+const revealed = new Set();
+// The tab the popup opened on. Cached because Chrome's permission prompt has
+// to be asked for straight from the click, before anything else is awaited.
+let currentTab = null;
+
+const originOf = (tab) => new URL(tab.url).origin;
 
 function setStatus(text, isError = false) {
   els.status.textContent = text || "";
@@ -107,7 +118,7 @@ async function ensureInjected(tab) {
   // invisible to a top-frame-only scan, and manual blur can't reach it either.
   const results = await chrome.scripting.executeScript({
     target: { tabId: tab.id, allFrames: true },
-    files: ["content/detectors.js", "content/redactor.js", "content/index.js"],
+    files: SmudgeSites.SCRIPT_FILES,
   });
   injected = { tabId: tab.id, frameIds: results.map((r) => r.frameId) };
   return injected;
@@ -180,12 +191,20 @@ function renderCounts(counts) {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = true;
+    checkbox.checked = !revealed.has(type);
     checkbox.id = "type-" + type;
-    checkbox.addEventListener("change", () => {
-      withTab((target) =>
-        send(target, { type: "TOGGLE_TYPE", piiType: type, blurred: checkbox.checked })
+    checkbox.addEventListener("change", async () => {
+      if (checkbox.checked) revealed.delete(type);
+      else revealed.add(type);
+      const tab = await withTab((target, tab) =>
+        send(target, { type: "TOGGLE_TYPE", piiType: type, blurred: checkbox.checked }).then(
+          () => tab
+        )
       );
+      // On a kept site, the choice holds on the next page too.
+      if (tab && els.keep.checked) {
+        await SmudgeSites.updateSite(originOf(tab), { revealedTypes: [...revealed] });
+      }
     });
 
     const label = document.createElement("label");
@@ -214,10 +233,13 @@ function setManualUI(on) {
 
 els.scan.addEventListener("click", async () => {
   setStatus("Scanning…");
-  const replies = await withTab((target) =>
-    send(target, { type: "SCAN", enabled: Object.keys(TYPE_LABELS) })
-  );
+  const enabled = Object.keys(TYPE_LABELS);
+  const replies = await withTab((target) => send(target, { type: "SCAN", enabled }));
   if (!replies) return; // withTab already reported why
+  // On a kept site, scan every page from now on, as it loads.
+  if (els.keep.checked && currentTab) {
+    await SmudgeSites.updateSite(originOf(currentTab), { scanned: true, enabled });
+  }
   if (!replies.length) {
     setStatus("Smudge couldn't reach this page. Reload it, then try again.", true);
     return;
@@ -251,9 +273,121 @@ els.clear.addEventListener("click", async () => {
   const replies = await withTab((target) => send(target, { type: "CLEAR_ALL" }));
   if (!replies || !replies.length) return;
   setManualUI(false);
+  revealed.clear();
   els.results.classList.add("hidden");
   els.counts.innerHTML = "";
-  setStatus("Cleared all blurs.");
+  // Clear all also ends "keep": forget this site and give back its access.
+  const wasKept = els.keep.checked;
+  if (wasKept && currentTab) {
+    els.keep.checked = false;
+    try {
+      await chrome.runtime.sendMessage({
+        type: "KEEP_OFF",
+        tabId: currentTab.id,
+        origin: originOf(currentTab),
+      });
+    } catch (err) {
+      els.keep.checked = true;
+      setStatus(friendlyError(err), true);
+      return;
+    }
+  }
+  setStatus(
+    wasKept
+      ? "Cleared all blurs. Smudge has forgotten this site and no longer has access to it."
+      : "Cleared all blurs."
+  );
+});
+
+// --- Keep blurs across pages --------------------------------------------------
+
+els.keep.addEventListener("change", async () => {
+  const tab = currentTab;
+  if (!tab) {
+    els.keep.checked = false;
+    return;
+  }
+  const origin = originOf(tab);
+
+  if (!els.keep.checked) {
+    try {
+      await chrome.runtime.sendMessage({ type: "KEEP_OFF", tabId: tab.id, origin });
+      setStatus(
+        "Smudge has stopped keeping blurs here and forgotten this site. " +
+          "The blurs on this page stay until you clear them."
+      );
+    } catch (err) {
+      setStatus(friendlyError(err), true);
+    }
+    return;
+  }
+
+  // Must be the first thing awaited: Chrome only shows the prompt in
+  // direct response to the click.
+  let granted = false;
+  try {
+    granted = await chrome.permissions.request({
+      origins: [SmudgeSites.patternFor(origin)],
+    });
+  } catch (err) {
+    els.keep.checked = false;
+    setStatus(friendlyError(err), true);
+    return;
+  }
+  if (!granted) {
+    els.keep.checked = false;
+    setStatus(
+      "Smudge needs your OK to come back on this site's pages, so nothing has " +
+        "changed. Blurs still work on this page as usual."
+    );
+    return;
+  }
+
+  setStatus("Switching on…");
+  let reply = null;
+  try {
+    reply = await chrome.runtime.sendMessage({ type: "KEEP_ON", tabId: tab.id, origin });
+  } catch (err) {
+    reply = { ok: false, error: String(err) };
+  }
+  if (!reply || !reply.ok) {
+    els.keep.checked = false;
+    setStatus(friendlyError(new Error((reply && reply.error) || "no reply")), true);
+    return;
+  }
+  setStatus(
+    "Blurs on this site will now stay as you move between pages, until you " +
+      "press Clear all blurs or close the browser."
+  );
+});
+
+// Draw the popup the way the page is: on a kept site there may already be
+// blurs here, put back as the page loaded.
+async function init() {
+  const tab = await getActiveTab();
+  currentTab = tab || null;
+  if (!tab || isRestricted(tab.url) || !SmudgeSites.canKeep(tab.url)) {
+    els.keep.disabled = true;
+    els.keepHint.textContent = "Works on websites — pages starting with http:// or https://.";
+    return;
+  }
+  const site = await SmudgeSites.getSite(originOf(tab));
+  if (!site || !site.keep) return;
+  els.keep.checked = true;
+
+  const replies = await withTab((target) => send(target, { type: "GET_STATE" }));
+  if (!replies || !replies.length) return;
+  const top = replies[0];
+  for (const t of top.revealedTypes || []) revealed.add(t);
+  setManualUI(replies.some((r) => r.manual));
+  if (replies.some((r) => r.scanned)) renderCounts(mergeCounts(replies.map((r) => r.counts)));
+  setStatus("Keeping blurs on this site.");
+}
+
+// data-ready lets the automated tests (test/keep/keep.test.cjs) know the
+// popup has finished drawing itself.
+init().finally(() => {
+  document.body.dataset.ready = "true";
 });
 
 els.screenshot.addEventListener("click", async () => {

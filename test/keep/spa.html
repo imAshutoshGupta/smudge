@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Keep blurs — single-page app</title>
+    <link rel="stylesheet" href="/keep/keep.css" />
+  </head>
+  <body>
+    <nav>
+      <a href="/spa/a" data-route>Route A</a> ·
+      <a href="/spa/b" data-route>Route B</a> ·
+      <a href="#/c">Hash route C</a> ·
+      <a href="#/d">Hash route D</a>
+    </nav>
+    <div id="app"><p>Loading…</p></div>
+    <script>
+      // A tiny client-side router. Pages are swapped in place, and each one
+      // "loads its data" after a short delay, the way a real app fetches.
+      const VIEWS = {
+        a: `<h1>Route A — account</h1>
+            <p class="contact">Contact: ada@example.com</p>
+            <section class="panel"><p class="secret">Account manager: Ada Lovelace</p></section>`,
+        b: `<h1>Route B — billing</h1>
+            <p class="phone">Phone: (415) 555-0123</p>
+            <section class="panel"><p class="other">Plan: Business, renews monthly</p></section>`,
+        c: `<h1>Route C — settings</h1>
+            <p class="contact">Recovery email: recover@example.com</p>
+            <section class="panel"><p class="secret">Security question: first pet's name</p></section>`,
+        d: `<h1>Route D — help</h1>
+            <section class="panel"><p class="other">Nothing private here</p></section>`,
+      };
+      function route() {
+        const m = /^#\/(\w)/.exec(location.hash) || /^\/spa\/(\w)/.exec(location.pathname);
+        return (m && m[1]) || "a";
+      }
+      function render() {
+        const app = document.getElementById("app");
+        app.innerHTML = "<p>Loading…</p>";
+        const view = route();
+        setTimeout(() => {
+          if (route() === view) app.innerHTML = VIEWS[view] || "<p>Not found</p>";
+        }, 40);
+      }
+      document.addEventListener("click", (e) => {
+        const a = e.target.closest("a[data-route]");
+        if (!a || e.defaultPrevented) return;
+        e.preventDefault();
+        history.pushState(null, "", a.getAttribute("href"));
+        render();
+      });
+      addEventListener("popstate", render);
+      addEventListener("hashchange", render);
+      render();
+    </script>
+  </body>
+</html>

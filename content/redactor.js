@@ -13,6 +13,13 @@
 //   .smudge-manual-blur a page element the user clicked to blur
 //   html.smudge-manual  click-to-blur mode is on in this frame
 //   [data-smudge-type]  which PII type an auto span or field holds
+//   [data-smudge-saved] a manual blur keep.js remembers (holds its entry id)
+//
+// keep.js (loaded after this file) can hook in through two optional
+// functions on window.Smudge, both no-ops unless "Keep blurs" is on:
+//   S.isRevealed(type, text)  true if the person revealed this exact item
+//                             on this page before — wrap it unblurred
+//   S.onUserToggle(el, blurred)  the person just clicked el to blur/unblur
 
 (() => {
   const S = (window.Smudge = window.Smudge || {});
@@ -26,6 +33,8 @@
   const STYLE_ID = "smudge-style";
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
+    // At document_start (keep.js) there may be no <head> yet; the
+    // documentElement fallback below works just as well.
     const revealSelectors = S.PII_TYPES.map(
       (t) => `html.smudge-reveal-${t} .smudge-blur[data-smudge-type="${t}"]`
     ).join(",\n      ");
@@ -79,7 +88,12 @@
 
   function wrapHit(text, hit) {
     const span = document.createElement("span");
-    span.className = "smudge-blur smudge-auto";
+    // Revealed on an earlier visit: still wrapped, so the checkbox and
+    // clearAll can find it, but not blurred.
+    span.className =
+      S.isRevealed && S.isRevealed(hit.type, text)
+        ? "smudge-auto"
+        : "smudge-blur smudge-auto";
     span.dataset.smudgeType = hit.type;
     span.title = "Redacted by Smudge";
     span.textContent = text;
@@ -107,9 +121,9 @@
     node.parentNode.replaceChild(frag, node);
   }
 
-  function scanText(enabled) {
-    if (!document.body) return; // a frame caught mid-load
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+  function scanText(enabled, root = document.body) {
+    if (!root) return; // a frame caught mid-load
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
         if (shouldSkip(node.parentElement)) return NodeFilter.FILTER_REJECT;
         if (!node.nodeValue || !node.nodeValue.trim()) {
@@ -138,23 +152,46 @@
     "password", "radio", "range", "reset", "submit",
   ]);
 
-  function scanFields(enabled) {
-    document.querySelectorAll("input, textarea").forEach((el) => {
-      if (el.tagName === "INPUT" && SKIP_INPUT_TYPES.has((el.type || "").toLowerCase())) {
-        return;
+  function scanField(el, enabled) {
+    if (el.tagName === "INPUT" && SKIP_INPUT_TYPES.has((el.type || "").toLowerCase())) {
+      return;
+    }
+    // Keyed on .smudge-field, not .smudge-blur, so a field the user manually
+    // revealed stays revealed across a re-scan.
+    if (el.classList.contains("smudge-field")) return;
+    const value = el.value;
+    if (!value || !value.trim()) return;
+    const hits = S.findHits(value, enabled);
+    if (!hits.length) return;
+    // The field is blurred whole, so it carries a single type — the first
+    // hit's. A field mixing types (rare) follows that one type's checkbox.
+    const type = hits[0].type;
+    el.classList.add("smudge-field");
+    if (!(S.isRevealed && S.isRevealed(type, value))) el.classList.add("smudge-blur");
+    el.dataset.smudgeType = type;
+  }
+
+  function scanFields(enabled, root = document) {
+    if (root.matches && root.matches("input, textarea")) scanField(root, enabled);
+    root.querySelectorAll("input, textarea").forEach((el) => scanField(el, enabled));
+  }
+
+  // Scan just one node and what's under it — for keep.js, which calls this
+  // for each piece of the page as it arrives instead of rescanning the lot.
+  function scanNode(node, enabled) {
+    if (!node || !node.isConnected) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!shouldSkip(node.parentElement) && node.nodeValue && node.nodeValue.trim()) {
+        processTextNode(node, enabled);
       }
-      // Keyed on .smudge-field, not .smudge-blur, so a field the user manually
-      // revealed stays revealed across a re-scan.
-      if (el.classList.contains("smudge-field")) return;
-      const value = el.value;
-      if (!value || !value.trim()) return;
-      const hits = S.findHits(value, enabled);
-      if (!hits.length) return;
-      // The field is blurred whole, so it carries a single type — the first
-      // hit's. A field mixing types (rare) follows that one type's checkbox.
-      el.classList.add("smudge-blur", "smudge-field");
-      el.dataset.smudgeType = hits[0].type;
-    });
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.closest(".smudge-auto, .smudge-blur")) return;
+    const tag = node.tagName;
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") return;
+    scanText(enabled, node);
+    scanFields(enabled, node);
   }
 
   // ---------------------------------------------------------------------------
@@ -174,17 +211,55 @@
     return counts;
   }
 
+  // The types the last scan looked for, or null if this frame hasn't been
+  // scanned. keep.js reads it to scan new content the same way.
+  let scannedFor = null;
+
   function scanAndBlur(enabledArr) {
     injectStyles();
     const enabled = new Set(enabledArr);
+    scannedFor = enabled;
     scanText(enabled);
     scanFields(enabled);
     return currentCounts();
   }
 
+  // Types the person unticked in the popup. Held here as well as on
+  // <html class>, because page scripts sometimes overwrite that attribute and
+  // keep.js needs to know what to put back.
+  const revealed = new Set();
+
   // Toggle whether a given PII type stays blurred (popup checkboxes).
   function setTypeBlurred(type, blurred) {
+    if (blurred) revealed.delete(type);
+    else revealed.add(type);
     document.documentElement.classList.toggle("smudge-reveal-" + type, !blurred);
+  }
+
+  const revealedTypes = () => S.PII_TYPES.filter((t) => revealed.has(t));
+
+  // Put our <html> classes back to match our state. Only touches a class that
+  // is actually wrong: writing an unchanged class still counts as a change,
+  // and keep.js calls this from an observer on that very attribute.
+  function restoreRootClasses() {
+    const cl = document.documentElement.classList;
+    const want = (name, on) => {
+      if (cl.contains(name) !== on) cl.toggle(name, on);
+    };
+    for (const t of S.PII_TYPES) want("smudge-reveal-" + t, revealed.has(t));
+    want("smudge-manual", manualOn);
+  }
+
+  // Everything the popup needs to redraw itself when it opens on a page
+  // that already has blurs.
+  function getState() {
+    return {
+      scanned: !!scannedFor,
+      enabled: scannedFor ? [...scannedFor] : [],
+      counts: currentCounts(),
+      manual: manualOn,
+      revealedTypes: revealedTypes(),
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -216,13 +291,15 @@
     const t = e.target;
     if (!t) return;
     t.classList.remove("smudge-hover");
-    if (t.classList.contains("smudge-blur")) {
+    const blurred = !t.classList.contains("smudge-blur");
+    if (!blurred) {
       t.classList.remove("smudge-blur");
       if (!isDetected(t)) t.classList.remove("smudge-manual-blur");
     } else {
       t.classList.add("smudge-blur");
       if (!isDetected(t)) t.classList.add("smudge-manual-blur");
     }
+    if (S.onUserToggle) S.onUserToggle(t, blurred);
   }
 
   // Manual mode swallows page clicks, so leave an exit that doesn't depend on
@@ -253,6 +330,7 @@
   // ---------------------------------------------------------------------------
   function clearAll() {
     setManual(false);
+    scannedFor = null;
     // Unwrap auto-detected spans back to plain text.
     document.querySelectorAll("span.smudge-auto").forEach((span) => {
       const parent = span.parentNode;
@@ -266,17 +344,25 @@
       delete el.dataset.smudgeType;
     });
     // Remove manual element blurs.
-    document.querySelectorAll(".smudge-manual-blur").forEach((el) => {
+    document.querySelectorAll(".smudge-manual-blur, [data-smudge-saved]").forEach((el) => {
       el.classList.remove("smudge-blur", "smudge-manual-blur");
+      delete el.dataset.smudgeSaved;
     });
     // Clear any per-type reveal flags.
+    revealed.clear();
     S.PII_TYPES.forEach((t) =>
       document.documentElement.classList.remove("smudge-reveal-" + t)
     );
   }
 
+  S.injectStyles = injectStyles;
   S.scanAndBlur = scanAndBlur;
+  S.scanNode = scanNode;
+  S.scannedFor = () => scannedFor;
+  S.getState = getState;
+  S.isDetected = isDetected;
   S.setTypeBlurred = setTypeBlurred;
+  S.restoreRootClasses = restoreRootClasses;
   S.setManual = setManual;
   S.clearAll = clearAll;
 })();

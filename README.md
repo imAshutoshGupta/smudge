@@ -2,14 +2,15 @@
 
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-4285F4)
 ![Network requests](https://img.shields.io/badge/network%20requests-none-2ea043)
-![Storage](https://img.shields.io/badge/storage-none-2ea043)
+![Disk storage](https://img.shields.io/badge/disk%20storage-none-2ea043)
 ![License](https://img.shields.io/badge/license-all%20rights%20reserved-lightgrey)
 
 A Chrome extension that finds personal details on a web page — emails, phone
 numbers, card numbers, payment addresses and ID numbers — and blurs them before
 you take a screenshot or share your screen.
 
-Everything runs locally. No network requests, no storage, no account.
+Everything runs locally. No network requests, nothing saved to disk, no
+account.
 
 ![Smudge blurring the personal details in a customer record](docs/social-preview.png)
 
@@ -43,9 +44,27 @@ expected for any extension installed this way.
 
 Untick a category in the popup to reveal just that kind of item again.
 
+### Moving between pages
+
+Showing someone around a site with several pages? Switch on **Keep blurs as I
+move around this site** in the popup. Chrome asks once to let Smudge onto that
+site. From then on:
+
+- what you blurred on a page comes back when you return to it, whether the
+  site loads a new page each time or is a single-page app;
+- if you scanned, every other page of the site is scanned as it loads;
+- unticked categories and items you clicked to reveal stay that way.
+
+It lasts until you press **Clear all blurs**, switch it off, or close the
+browser. Smudge remembers where your blurs were, in your browser's memory on
+your computer, never the text itself. On a slow page you may see a detail for
+a split second before its blur goes on: blurs go on from the top of the page
+down as it arrives, but Smudge never holds the page back.
+
 ## Privacy
 
-No data is collected, stored or transmitted. See [PRIVACY.md](PRIVACY.md).
+No data is collected or transmitted, and nothing is saved to disk. See
+[PRIVACY.md](PRIVACY.md).
 
 ## License
 

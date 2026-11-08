@@ -1,9 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Smudge — Blur Personal Details Before Sharing",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Blurs emails, phones, cards, Aadhaar, PAN, UPI and other IDs on a page before you screenshot or share it. All on your computer.",
-  "permissions": ["activeTab", "scripting"],
+  "minimum_chrome_version": "111",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "Smudge — blur personal details before sharing",
     "default_popup": "popup.html",
